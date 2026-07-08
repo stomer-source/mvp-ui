@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>사당역 이동 선택 도우미</title>
+    <meta
+      name="description"
+      content="사당역에서 7800번 버스와 지하철 중 어떤 선택이 더 나은지 비교해주는 실험용 웹사이트"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="chat-page">
+      <section class="chat-hero">
+        <div class="chat-shell">
+          <p class="eyebrow">SADANG</p>
+          <h1>사당역, 뭐 탈까?</h1>
+          <p class="lead">
+            요일과 시간만 고르면 바로 추천합니다.
+          </p>
+
+          <div class="chat-composer" role="search">
+            <div class="composer-row">
+              <input
+                id="departure"
+                type="time"
+                value="08:30"
+                aria-label="시간 입력"
+              />
+              <button class="apple-button primary" id="refreshBtn" type="button">물어보기</button>
+            </div>
+            <div class="composer-meta">
+              <label>
+                요일
+                <select id="weekday">
+                  <option value="mon">월요일</option>
+                  <option value="tue">화요일</option>
+                  <option value="wed">수요일</option>
+                  <option value="thu">목요일</option>
+                  <option value="fri">금요일</option>
+                  <option value="sat">토요일</option>
+                  <option value="sun">일요일</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <section class="answer-panel" id="answerPanel" aria-live="polite" hidden>
+            <div class="answer-header">
+              <div>
+                <p class="answer-kicker">추천 결과</p>
+                <h2 id="decisionText">요일과 시간을 선택하세요</h2>
+              </div>
+              <span class="answer-state" id="subNavState">샘플 데이터</span>
+            </div>
+            <p id="decisionSub" class="body-copy">
+              물어보기를 누르면 버스와 지하철을 나란히 비교해서 보여줍니다.
+            </p>
+
+            <div class="compare-grid">
+              <article class="compare-card compare-bus">
+                <div class="compare-head">
+                  <span class="compare-label">7800번 버스</span>
+                  <strong id="busScore">-</strong>
+                </div>
+                <ul class="compare-list">
+                  <li><span>예상 총 소요</span><strong id="busDuration">-</strong></li>
+                  <li><span>예상 대기</span><strong id="busWait">-</strong></li>
+                  <li><span>혼잡도</span><strong id="busCrowd">-</strong></li>
+                </ul>
+                <p id="busNote" class="compare-note">버스 분석이 여기 표시됩니다.</p>
+              </article>
+
+              <article class="compare-card compare-subway">
+                <div class="compare-head">
+                  <span class="compare-label">지하철</span>
+                  <strong id="subwayScore">-</strong>
+                </div>
+                <ul class="compare-list">
+                  <li><span>예상 총 소요</span><strong id="subwayDuration">-</strong></li>
+                  <li><span>예상 대기</span><strong id="subwayWait">-</strong></li>
+                  <li><span>혼잡도</span><strong id="subwayCrowd">-</strong></li>
+                </ul>
+                <p id="subwayNote" class="compare-note">지하철 분석이 여기 표시됩니다.</p>
+              </article>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
