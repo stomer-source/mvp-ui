@@ -183,6 +183,12 @@ h1 {
   align-self: end;
 }
 
+.meta-actions {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+}
+
 .answer-panel {
   display: grid;
   gap: 16px;
@@ -536,6 +542,11 @@ h1 {
 
   .composer-meta {
     grid-template-columns: 1fr;
+  }
+
+  .meta-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 
   .apple-button {

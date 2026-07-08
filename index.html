@@ -43,9 +43,14 @@
                   <option value="sun">일요일</option>
                 </select>
               </label>
-              <button class="apple-button secondary meta-button" id="nowBtn" type="button">
-                지금
-              </button>
+              <div class="meta-actions">
+                <button class="apple-button secondary meta-button" id="nowBtn" type="button">
+                  지금
+                </button>
+                <button class="apple-button secondary meta-button" id="locationBtn" type="button">
+                  목록
+                </button>
+              </div>
             </div>
           </div>
 
@@ -116,7 +121,7 @@
               </p>
             </article>
 
-            <article class="location-card">
+            <article class="location-card" id="locationCard" hidden>
               <div class="location-head">
                 <div>
                   <p class="location-kicker">7800번 실시간 위치</p>

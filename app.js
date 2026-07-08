@@ -4,6 +4,7 @@ const departureEl = $("departure");
 const weekdayEl = $("weekday");
 const refreshBtn = $("refreshBtn");
 const nowBtn = $("nowBtn");
+const locationBtn = $("locationBtn");
 const answerPanel = $("answerPanel");
 const subNavState = $("subNavState");
 const decisionText = $("decisionText");
@@ -24,6 +25,7 @@ const forecastArrivalEl = $("forecastArrival");
 const forecastSeatsEl = $("forecastSeats");
 const forecastBoardingEl = $("forecastBoarding");
 const forecastNoteEl = $("forecastNote");
+const locationCardEl = $("locationCard");
 const locationTitleEl = $("locationTitle");
 const locationStateEl = $("locationState");
 const locationSummaryEl = $("locationSummary");
@@ -738,13 +740,20 @@ async function updateUI(openPanel = false) {
   forecastBoardingEl.textContent = `${forecast.boardingText} · ${forecast.congestionText}`;
   forecastNoteEl.textContent = forecast.noteText;
 
-  renderLocationCard(locationEntries);
+  if (!locationCardEl.hidden) {
+    renderLocationCard(locationEntries);
+  }
 }
 
 refreshBtn.addEventListener("click", () => updateUI(true));
 nowBtn.addEventListener("click", async () => {
   setCurrentSelection();
   await updateUI(true);
+});
+locationBtn.addEventListener("click", async () => {
+  locationCardEl.hidden = false;
+  await updateUI(true);
+  locationCardEl.scrollIntoView({ behavior: "smooth", block: "start" });
 });
 [departureEl, weekdayEl].forEach((el) => {
   el.addEventListener("input", updateUI);
