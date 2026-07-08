@@ -3,6 +3,7 @@ const $ = (id) => document.getElementById(id);
 const departureEl = $("departure");
 const weekdayEl = $("weekday");
 const refreshBtn = $("refreshBtn");
+const nowBtn = $("nowBtn");
 const answerPanel = $("answerPanel");
 const subNavState = $("subNavState");
 const decisionText = $("decisionText");
@@ -49,6 +50,10 @@ function parseTimeToMinutes(timeValue) {
   return hour * 60 + minute;
 }
 
+function formatTimeValue(date) {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
 function getTodayWeekdayValue() {
   return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date().getDay()];
 }
@@ -61,6 +66,12 @@ function isNearNow(timeMinutes) {
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   return Math.abs(timeMinutes - currentMinutes) <= LIVE_TIME_WINDOW_MINUTES;
+}
+
+function setCurrentSelection() {
+  const now = new Date();
+  weekdayEl.value = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][now.getDay()];
+  departureEl.value = formatTimeValue(now);
 }
 
 function formatClock(totalMinutes) {
@@ -402,6 +413,10 @@ async function updateUI(openPanel = false) {
 }
 
 refreshBtn.addEventListener("click", () => updateUI(true));
+nowBtn.addEventListener("click", async () => {
+  setCurrentSelection();
+  await updateUI(true);
+});
 [departureEl, weekdayEl].forEach((el) => {
   el.addEventListener("input", updateUI);
   el.addEventListener("change", updateUI);

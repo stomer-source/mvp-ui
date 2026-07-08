@@ -154,8 +154,9 @@ h1 {
 
 .composer-meta {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
+  align-items: end;
 }
 
 .composer-meta label {
@@ -173,6 +174,13 @@ h1 {
   padding: 0 12px;
   background: var(--canvas);
   color: var(--ink);
+}
+
+.meta-button {
+  height: 40px;
+  min-width: 92px;
+  padding: 0 14px;
+  align-self: end;
 }
 
 .answer-panel {
@@ -334,6 +342,10 @@ h1 {
 
   .composer-row {
     flex-direction: column;
+  }
+
+  .composer-meta {
+    grid-template-columns: 1fr;
   }
 
   .apple-button {
