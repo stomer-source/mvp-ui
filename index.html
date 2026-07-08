@@ -49,40 +49,40 @@
           <section class="answer-panel" id="answerPanel" aria-live="polite" hidden>
             <div class="answer-header">
               <div>
-                <p class="answer-kicker">추천 결과</p>
+                <p class="answer-kicker">7800번 버스 분석</p>
                 <h2 id="decisionText">요일과 시간을 선택하세요</h2>
               </div>
               <span class="answer-state" id="subNavState">샘플 데이터</span>
             </div>
             <p id="decisionSub" class="body-copy">
-              물어보기를 누르면 버스와 지하철을 나란히 비교해서 보여줍니다.
+              물어보기를 누르면 7800번 버스의 다음 도착과 대략 남는 자리를 보여줍니다.
             </p>
 
             <div class="compare-grid">
               <article class="compare-card compare-bus">
                 <div class="compare-head">
-                  <span class="compare-label">7800번 버스</span>
-                  <strong id="busScore">-</strong>
+                  <span class="compare-label">도착 예상</span>
+                  <strong id="busArrival">-</strong>
                 </div>
                 <ul class="compare-list">
-                  <li><span>예상 총 소요</span><strong id="busDuration">-</strong></li>
-                  <li><span>예상 대기</span><strong id="busWait">-</strong></li>
-                  <li><span>혼잡도</span><strong id="busCrowd">-</strong></li>
+                  <li><span>다음 도착</span><strong id="busNext">-</strong></li>
+                  <li><span>배차 간격</span><strong id="busHeadway">-</strong></li>
+                  <li><span>운행 상태</span><strong id="busService">-</strong></li>
                 </ul>
-                <p id="busNote" class="compare-note">버스 분석이 여기 표시됩니다.</p>
+                <p id="busNote" class="compare-note">사당역 9번 출구 기준의 도착 예측이 여기 표시됩니다.</p>
               </article>
 
               <article class="compare-card compare-subway">
                 <div class="compare-head">
-                  <span class="compare-label">지하철</span>
-                  <strong id="subwayScore">-</strong>
+                  <span class="compare-label">좌석 예상</span>
+                  <strong id="seatSummary">-</strong>
                 </div>
                 <ul class="compare-list">
-                  <li><span>예상 총 소요</span><strong id="subwayDuration">-</strong></li>
-                  <li><span>예상 대기</span><strong id="subwayWait">-</strong></li>
-                  <li><span>혼잡도</span><strong id="subwayCrowd">-</strong></li>
+                  <li><span>차량 좌석 수</span><strong id="seatCapacity">-</strong></li>
+                  <li><span>예상 남은 좌석</span><strong id="seatRemain">-</strong></li>
+                  <li><span>차량 구성</span><strong id="busTypeMix">-</strong></li>
                 </ul>
-                <p id="subwayNote" class="compare-note">지하철 분석이 여기 표시됩니다.</p>
+                <p id="seatNote" class="compare-note">일반버스와 2층버스를 함께 고려한 대략값입니다.</p>
               </article>
             </div>
           </section>

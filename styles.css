@@ -344,16 +344,11 @@ h1 {
     padding: 20px;
   }
 
-  .answer-header,
-  .compare-grid {
-    grid-template-columns: 1fr;
-  }
-
   .answer-header {
     flex-direction: column;
   }
 
   .compare-grid {
-    display: grid;
+    grid-template-columns: 1fr;
   }
 }
