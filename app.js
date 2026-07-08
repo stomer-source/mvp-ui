@@ -21,6 +21,7 @@ const BUS_API_ENDPOINT = "https://apis.data.go.kr/6410000/busarrivalservice/v2/g
 const BUS_API_SERVICE_KEY = "223e3b2cf9a71733ebc98afd9de0fe244440b47b57aae18494886aebeffff8bd";
 const BUS_STATION_ID = "119000302";
 const BUS_ROUTE_NAME = "7800";
+const LIVE_TIME_WINDOW_MINUTES = 30;
 
 const weekdayLabels = {
   mon: "월요일",
@@ -46,6 +47,20 @@ function isWeekday(dayValue) {
 function parseTimeToMinutes(timeValue) {
   const [hour, minute] = timeValue.split(":").map(Number);
   return hour * 60 + minute;
+}
+
+function getTodayWeekdayValue() {
+  return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date().getDay()];
+}
+
+function isTodaySelection(dayValue) {
+  return dayValue === getTodayWeekdayValue();
+}
+
+function isNearNow(timeMinutes) {
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  return Math.abs(timeMinutes - currentMinutes) <= LIVE_TIME_WINDOW_MINUTES;
 }
 
 function formatClock(totalMinutes) {
@@ -251,9 +266,9 @@ async function fetchBusData() {
   return pickSoonestBusEntry(busArrivalList);
 }
 
-function renderBusData(dayValue, timeMinutes, apiEntry) {
+function renderBusData(dayValue, timeMinutes, apiEntry, allowFallback = true) {
   if (!apiEntry) {
-    return buildFallbackBusData(dayValue, timeMinutes);
+    return allowFallback ? buildFallbackBusData(dayValue, timeMinutes) : null;
   }
 
   const predictTime1 = toNumber(apiEntry.predictTime1);
@@ -274,7 +289,7 @@ function renderBusData(dayValue, timeMinutes, apiEntry) {
   const best = candidates[0];
 
   if (!best) {
-    return buildFallbackBusData(dayValue, timeMinutes);
+    return allowFallback ? buildFallbackBusData(dayValue, timeMinutes) : null;
   }
 
   const arrivalMinutes = Math.max(0, Math.round(best.predictTime));
@@ -310,22 +325,64 @@ function renderBusData(dayValue, timeMinutes, apiEntry) {
 async function updateUI(openPanel = false) {
   const dayValue = weekdayEl.value;
   const timeMinutes = parseTimeToMinutes(departureEl.value);
+  const useLiveData = isTodaySelection(dayValue) && isNearNow(timeMinutes);
 
   if (openPanel) {
     answerPanel.hidden = false;
   }
 
-  subNavState.textContent = openPanel ? "계산 중..." : "샘플 계산";
+  subNavState.textContent = openPanel ? (useLiveData ? "실시간 조회 중..." : "계산 중...") : "샘플 계산";
   decisionText.textContent = `${weekdayLabels[dayValue] ?? "요일"} · ${departureEl.value}`;
   decisionSub.textContent =
-    "7800번 버스의 다음 도착 시각과 대략 남는 좌석 수를 같은 화면에서 같이 보여줍니다.";
+    useLiveData
+      ? "오늘이고 지금 시간에 가까워서 실시간 API로만 보여줍니다."
+      : "7800번 버스의 다음 도착 시각과 대략 남는 좌석 수를 같은 화면에서 같이 보여줍니다.";
 
   let busData;
-  try {
-    const apiEntry = await fetchBusData();
-    busData = renderBusData(dayValue, timeMinutes, apiEntry);
-  } catch (_error) {
-    busData = buildFallbackBusData(dayValue, timeMinutes);
+  if (useLiveData) {
+    try {
+      const apiEntry = await fetchBusData();
+      busData = renderBusData(dayValue, timeMinutes, apiEntry, false);
+    } catch (_error) {
+      busData = {
+        arrivalText: "실시간 조회 실패",
+        arrivalNote: "API 응답 없음",
+        headwayText: "-",
+        serviceText: "실시간 데이터 필요",
+        note: "오늘이고 현재 시간에 가까워서 과거 데이터 대신 실시간 정보가 필요하지만, API를 가져오지 못했습니다.",
+        seatSummary: "좌석 정보 없음",
+        seatCapacity: "44~70석",
+        seatRemain: "실시간 확인 실패",
+        busTypeMix: "2층 12대 / 일반 15대",
+        seatNote: "실시간 API가 응답하면 이 자리에 남은 좌석 수가 표시됩니다.",
+        sourceLabel: "실시간 조회 실패",
+      };
+    }
+  } else {
+    try {
+      const apiEntry = await fetchBusData();
+      busData = renderBusData(dayValue, timeMinutes, apiEntry, true);
+    } catch (_error) {
+      busData = buildFallbackBusData(dayValue, timeMinutes);
+    }
+  }
+
+  if (!busData) {
+    busData = useLiveData
+      ? {
+          arrivalText: "실시간 조회 실패",
+          arrivalNote: "7800번 데이터 없음",
+          headwayText: "-",
+          serviceText: "실시간 데이터 필요",
+          note: "오늘이고 현재 시간에 가까워서 과거 데이터 대신 실시간 정보가 필요하지만, 7800번 항목을 찾지 못했습니다.",
+          seatSummary: "좌석 정보 없음",
+          seatCapacity: "44~70석",
+          seatRemain: "실시간 확인 실패",
+          busTypeMix: "2층 12대 / 일반 15대",
+          seatNote: "API 응답에 7800번 버스가 없어서 실시간 정보를 보여주지 못했습니다.",
+          sourceLabel: "실시간 조회 실패",
+        }
+      : buildFallbackBusData(dayValue, timeMinutes);
   }
 
   answerPanel.hidden = false;
