@@ -392,6 +392,122 @@ h1 {
   color: var(--muted);
 }
 
+.location-card {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  background: #fff;
+}
+
+.location-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.location-kicker {
+  margin: 0 0 8px;
+  color: var(--muted-soft);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.location-head h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.15;
+}
+
+.location-state {
+  white-space: nowrap;
+  padding: 8px 12px;
+  border-radius: 9999px;
+  background: var(--surface-card);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.location-summary {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.location-list {
+  display: grid;
+  gap: 12px;
+}
+
+.vehicle-row {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, rgba(250, 249, 245, 0.95), #fff);
+}
+
+.vehicle-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.vehicle-head strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.vehicle-pill {
+  padding: 6px 10px;
+  border-radius: 9999px;
+  background: rgba(204, 120, 92, 0.12);
+  color: var(--primary-active);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.vehicle-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.vehicle-field {
+  display: grid;
+  gap: 5px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+
+.vehicle-field span {
+  font-size: 12px;
+  color: var(--muted-soft);
+}
+
+.vehicle-field strong {
+  font-size: 14px;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.vehicle-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
 .apple-button:focus-visible,
 .composer-row input:focus-visible,
 .composer-meta input:focus-visible,
@@ -444,5 +560,13 @@ h1 {
 
   .forecast-grid {
     grid-template-columns: 1fr;
+  }
+
+  .location-head {
+    flex-direction: column;
+  }
+
+  .vehicle-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

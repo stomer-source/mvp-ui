@@ -24,10 +24,15 @@ const forecastArrivalEl = $("forecastArrival");
 const forecastSeatsEl = $("forecastSeats");
 const forecastBoardingEl = $("forecastBoarding");
 const forecastNoteEl = $("forecastNote");
+const locationTitleEl = $("locationTitle");
+const locationStateEl = $("locationState");
+const locationSummaryEl = $("locationSummary");
+const locationListEl = $("locationList");
 const BUS_API_ENDPOINT = "https://apis.data.go.kr/6410000/busarrivalservice/v2/getBusArrivalListv2";
 const BUS_API_SERVICE_KEY = "223e3b2cf9a71733ebc98afd9de0fe244440b47b57aae18494886aebeffff8bd";
 const BUS_STATION_ID = "119000302";
 const BUS_ROUTE_NAME = "7800";
+const BUS_ROUTE_ID = "200000150";
 const LIVE_TIME_WINDOW_MINUTES = 30;
 const FORECAST_HOURS_AHEAD = 3;
 const FORECAST_MINUTES_AHEAD = FORECAST_HOURS_AHEAD * 60;
@@ -406,8 +411,26 @@ function extractBusArrivalList(payload) {
   );
 }
 
+function extractBusLocationList(payload) {
+  return (
+    payload?.busLocationList ??
+    payload?.response?.msgBody?.busLocationList ??
+    payload?.response?.body?.busLocationList ??
+    payload?.response?.busLocationList ??
+    []
+  );
+}
+
 function findRouteEntry(busArrivalList) {
   return busArrivalList.find((item) => String(item.routeName) === BUS_ROUTE_NAME) ?? null;
+}
+
+function findRouteLocations(busLocationList) {
+  return busLocationList.filter((item) => {
+    const routeName = item.routeName != null ? String(item.routeName) : "";
+    const routeId = item.routeId != null ? String(item.routeId) : "";
+    return routeName === BUS_ROUTE_NAME || routeId === BUS_ROUTE_ID;
+  });
 }
 
 function buildFallbackBusData(dayValue, timeMinutes) {
@@ -466,7 +489,12 @@ async function fetchBusData() {
 
   const data = await response.json();
   const busArrivalList = extractBusArrivalList(data);
-  return findRouteEntry(busArrivalList);
+  const busLocationList = extractBusLocationList(data);
+  return {
+    arrivalEntry: findRouteEntry(busArrivalList),
+    locationEntries: findRouteLocations(busLocationList),
+    raw: data,
+  };
 }
 
 function renderBusData(dayValue, timeMinutes, apiEntry, allowFallback = true) {
@@ -507,11 +535,79 @@ function renderBusData(dayValue, timeMinutes, apiEntry, allowFallback = true) {
   };
 }
 
+function renderLocationCard(locationEntries) {
+  if (!locationEntries.length) {
+    locationTitleEl.textContent = "운행 중인 차량 없음";
+    locationStateEl.textContent = "실시간 조회 실패";
+    locationSummaryEl.textContent = "7800번 실시간 위치 목록을 찾지 못했습니다.";
+    locationListEl.innerHTML = "";
+    return;
+  }
+
+  const sortedEntries = [...locationEntries].sort((a, b) => {
+    const seqA = toNumber(a.stationSeq) ?? Number.MAX_SAFE_INTEGER;
+    const seqB = toNumber(b.stationSeq) ?? Number.MAX_SAFE_INTEGER;
+    return seqA - seqB;
+  });
+
+  locationTitleEl.textContent = `${sortedEntries.length}대 운행 중`;
+  locationStateEl.textContent = "실시간 위치";
+  locationSummaryEl.textContent =
+    "현재 운행 중인 7800번 차량들을 정류장 순서와 남은 좌석 기준으로 정리했습니다.";
+  locationListEl.innerHTML = sortedEntries
+    .map((bus, index) => {
+      const crowdedLabel = {
+        0: "여유",
+        1: "보통",
+        2: "혼잡",
+      }[bus.crowded] ?? "알수없음";
+      const stateLabel = {
+        0: "정차 중",
+        1: "운행 중",
+        2: "도착 전",
+      }[bus.stateCd] ?? "상태 미상";
+      const stationSeq = toNumber(bus.stationSeq);
+      const remainSeatCnt = toNumber(bus.remainSeatCnt);
+      const stationId = bus.stationId ?? "-";
+      const plateNo = bus.plateNo ?? "-";
+
+      return `
+        <section class="vehicle-row">
+          <div class="vehicle-head">
+            <strong>${index + 1}번째 차량 · ${plateNo}</strong>
+            <span class="vehicle-pill">${crowdedLabel} · ${stateLabel}</span>
+          </div>
+          <div class="vehicle-grid">
+            <div class="vehicle-field">
+              <span>현재 정류장 ID</span>
+              <strong>${stationId}</strong>
+            </div>
+            <div class="vehicle-field">
+              <span>노선상 위치</span>
+              <strong>${stationSeq === null ? "-" : `${stationSeq}번째`}</strong>
+            </div>
+            <div class="vehicle-field">
+              <span>남은 좌석</span>
+              <strong>${remainSeatCnt === null ? "-" : `${remainSeatCnt}석`}</strong>
+            </div>
+            <div class="vehicle-field">
+              <span>혼잡도</span>
+              <strong>${crowdedLabel}</strong>
+            </div>
+          </div>
+          <p class="vehicle-note">차량번호 ${plateNo} 기준으로 현재 실시간 위치를 표시합니다.</p>
+        </section>
+      `;
+    })
+    .join("");
+}
+
 async function updateUI(openPanel = false) {
   const dayValue = weekdayEl.value;
   const timeMinutes = parseTimeToMinutes(departureEl.value);
   const useLiveData = isTodaySelection(dayValue) && isNearNow(timeMinutes);
-  let apiEntry = null;
+  let arrivalEntry = null;
+  let locationEntries = [];
 
   if (openPanel) {
     answerPanel.hidden = false;
@@ -527,15 +623,19 @@ async function updateUI(openPanel = false) {
   let busData;
   if (useLiveData) {
     try {
-      apiEntry = await fetchBusData();
-      busData = renderBusData(dayValue, timeMinutes, apiEntry, false);
+      const payload = await fetchBusData();
+      arrivalEntry = payload.arrivalEntry;
+      locationEntries = payload.locationEntries;
+      busData = renderBusData(dayValue, timeMinutes, arrivalEntry, false);
     } catch (_error) {
       busData = null;
     }
   } else {
     try {
-      apiEntry = await fetchBusData();
-      busData = renderBusData(dayValue, timeMinutes, apiEntry, true);
+      const payload = await fetchBusData();
+      arrivalEntry = payload.arrivalEntry;
+      locationEntries = payload.locationEntries;
+      busData = renderBusData(dayValue, timeMinutes, arrivalEntry, true);
     } catch (_error) {
       busData = buildFallbackBusData(dayValue, timeMinutes);
     }
@@ -576,13 +676,15 @@ async function updateUI(openPanel = false) {
   busSeat2El.textContent = busData.second.seatText;
   busNote2El.textContent = busData.note2;
 
-  const forecast = buildForecast(dayValue, timeMinutes, useLiveData ? apiEntry : null);
+  const forecast = buildForecast(dayValue, timeMinutes, useLiveData ? arrivalEntry : null);
   forecastTimeEl.textContent = forecast.label;
   forecastStateEl.textContent = useLiveData ? "실시간 보정" : "과거 패턴";
   forecastArrivalEl.textContent = forecast.arrivalText;
   forecastSeatsEl.textContent = forecast.seatsText;
   forecastBoardingEl.textContent = `${forecast.boardingText} · ${forecast.congestionText}`;
   forecastNoteEl.textContent = forecast.noteText;
+
+  renderLocationCard(locationEntries);
 }
 
 refreshBtn.addEventListener("click", () => updateUI(true));
