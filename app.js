@@ -18,11 +18,20 @@ const busPredict2El = $("busPredict2");
 const busLocation2El = $("busLocation2");
 const busSeat2El = $("busSeat2");
 const busNote2El = $("busNote2");
+const forecastTimeEl = $("forecastTime");
+const forecastStateEl = $("forecastState");
+const forecastArrivalEl = $("forecastArrival");
+const forecastSeatsEl = $("forecastSeats");
+const forecastBoardingEl = $("forecastBoarding");
+const forecastNoteEl = $("forecastNote");
 const BUS_API_ENDPOINT = "https://apis.data.go.kr/6410000/busarrivalservice/v2/getBusArrivalListv2";
 const BUS_API_SERVICE_KEY = "223e3b2cf9a71733ebc98afd9de0fe244440b47b57aae18494886aebeffff8bd";
 const BUS_STATION_ID = "119000302";
 const BUS_ROUTE_NAME = "7800";
 const LIVE_TIME_WINDOW_MINUTES = 30;
+const FORECAST_HOURS_AHEAD = 3;
+const FORECAST_MINUTES_AHEAD = FORECAST_HOURS_AHEAD * 60;
+const DAY_SEQUENCE = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
 const weekdayLabels = {
   mon: "월요일",
@@ -46,6 +55,9 @@ function isWeekday(dayValue) {
 }
 
 function parseTimeToMinutes(timeValue) {
+  if (!timeValue || !timeValue.includes(":")) {
+    return 0;
+  }
   const [hour, minute] = timeValue.split(":").map(Number);
   return hour * 60 + minute;
 }
@@ -55,7 +67,7 @@ function formatTimeValue(date) {
 }
 
 function getTodayWeekdayValue() {
-  return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date().getDay()];
+  return DAY_SEQUENCE[new Date().getDay()];
 }
 
 function isTodaySelection(dayValue) {
@@ -70,7 +82,7 @@ function isNearNow(timeMinutes) {
 
 function setCurrentSelection() {
   const now = new Date();
-  weekdayEl.value = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][now.getDay()];
+  weekdayEl.value = DAY_SEQUENCE[now.getDay()];
   departureEl.value = formatTimeValue(now);
 }
 
@@ -83,6 +95,87 @@ function formatClock(totalMinutes) {
 
 function formatRange(min, max, suffix = "분") {
   return `${min}~${max}${suffix}`;
+}
+
+function formatSeatRange(min, max) {
+  return min === max ? `${min}석` : `${min}~${max}석`;
+}
+
+function getAverageSeatCount() {
+  return averageSeatCapacity;
+}
+
+function normalizeDayIndex(dayValue) {
+  const index = DAY_SEQUENCE.indexOf(dayValue);
+  return index === -1 ? 0 : index;
+}
+
+function shiftSelection(dayValue, timeMinutes, deltaMinutes) {
+  let totalMinutes = timeMinutes + deltaMinutes;
+  let dayIndex = normalizeDayIndex(dayValue);
+
+  while (totalMinutes >= 1440) {
+    totalMinutes -= 1440;
+    dayIndex = (dayIndex + 1) % 7;
+  }
+
+  while (totalMinutes < 0) {
+    totalMinutes += 1440;
+    dayIndex = (dayIndex + 6) % 7;
+  }
+
+  return {
+    dayValue: DAY_SEQUENCE[dayIndex],
+    timeMinutes: totalMinutes,
+  };
+}
+
+function getTimeLabel(dayValue, timeMinutes) {
+  return `${weekdayLabels[dayValue] ?? "요일"} · ${formatClock(timeMinutes)}`;
+}
+
+function getSeatLoadRange(profile) {
+  const [loadMin, loadMax] = estimateLoadRange(profile);
+  return {
+    loadMin,
+    loadMax,
+    remainMin: Math.max(0, Math.round(getAverageSeatCount() * (1 - loadMax))),
+    remainMax: Math.max(0, Math.round(getAverageSeatCount() * (1 - loadMin))),
+  };
+}
+
+function getBoardingLabel(remainMin, remainMax) {
+  const averageRemain = (remainMin + remainMax) / 2;
+
+  if (averageRemain >= 18) {
+    return "여유";
+  }
+
+  if (averageRemain >= 8) {
+    return "보통";
+  }
+
+  if (averageRemain >= 1) {
+    return "빡빡";
+  }
+
+  return "거의 만석";
+}
+
+function getCongestionLabel(remainMin, remainMax) {
+  const averageRemain = (remainMin + remainMax) / 2;
+  const capacity = getAverageSeatCount();
+  const occupancy = Math.max(0, Math.min(100, Math.round(((capacity - averageRemain) / capacity) * 100)));
+
+  if (occupancy >= 85) {
+    return `혼잡 ${occupancy}%`;
+  }
+
+  if (occupancy >= 65) {
+    return `보통 ${occupancy}%`;
+  }
+
+  return `여유 ${occupancy}%`;
 }
 
 function getTimeCondition(minutes) {
@@ -167,6 +260,139 @@ function estimateSeats(profile) {
 function toNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getSelectionAverageSeatCount(apiEntry) {
+  const remainSeatCnt1 = toNumber(apiEntry?.remainSeatCnt1);
+  const remainSeatCnt2 = toNumber(apiEntry?.remainSeatCnt2);
+  const values = [remainSeatCnt1, remainSeatCnt2].filter((value) => value !== null);
+
+  if (!values.length) {
+    return null;
+  }
+
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function getHistoricalForecastSnapshot(dayValue, timeMinutes) {
+  const historySources = [
+    globalThis.BUS_HISTORY,
+    globalThis.__BUS_HISTORY,
+    globalThis.busHistory,
+  ].filter(Array.isArray);
+
+  if (!historySources.length) {
+    return null;
+  }
+
+  const windowStart = timeMinutes - 45;
+  const windowEnd = timeMinutes + 45;
+  const targetDay = dayValue;
+  const records = [];
+
+  for (const source of historySources) {
+    for (const item of source) {
+      const itemDay = item.dayValue ?? item.weekday ?? item.day ?? null;
+      const itemTime = toNumber(item.timeMinutes ?? item.minuteOfDay ?? item.minutes);
+      const itemRemain =
+        toNumber(item.remainSeatCnt) ??
+        toNumber(item.remainSeats) ??
+        toNumber(item.seats) ??
+        toNumber(item.remain);
+
+      if (itemDay !== targetDay || itemTime === null || itemRemain === null) {
+        continue;
+      }
+
+      const normalizedTime = ((itemTime % 1440) + 1440) % 1440;
+      if (normalizedTime < windowStart || normalizedTime > windowEnd) {
+        continue;
+      }
+
+      records.push({
+        remainSeatCnt: itemRemain,
+        load:
+          toNumber(item.loadRate) ??
+          toNumber(item.loadPercent) ??
+          toNumber(item.occupancyRate) ??
+          null,
+      });
+    }
+  }
+
+  if (!records.length) {
+    return null;
+  }
+
+  const averageRemain =
+    records.reduce((sum, item) => sum + item.remainSeatCnt, 0) / records.length;
+  const explicitLoads = records.filter((item) => item.load !== null).map((item) => item.load);
+  const averageLoad =
+    explicitLoads.length > 0
+      ? explicitLoads.reduce((sum, value) => sum + value, 0) / explicitLoads.length
+      : null;
+
+  return {
+    averageRemain,
+    averageLoad,
+    count: records.length,
+  };
+}
+
+function forecastSeatsFromSignals(dayValue, timeMinutes, apiEntry, profile) {
+  const baseRange = getSeatLoadRange(profile);
+  const history = getHistoricalForecastSnapshot(dayValue, timeMinutes);
+  const liveAverageRemain = getSelectionAverageSeatCount(apiEntry);
+
+  const capacity = getAverageSeatCount();
+  const currentExpectedRemain = Math.round(capacity * (1 - (baseRange.loadMin + baseRange.loadMax) / 2));
+  let targetRemain = currentExpectedRemain;
+  let notes = [];
+
+  if (history) {
+    targetRemain = (targetRemain * 2 + history.averageRemain) / 3;
+    notes.push(`과거 ${history.count}개 패턴 반영`);
+  }
+
+  if (liveAverageRemain !== null) {
+    targetRemain = (targetRemain * 2 + liveAverageRemain) / 3;
+    notes.push("실시간 좌석 정보 반영");
+  }
+
+  const spread = Math.max(3, Math.round(capacity * 0.08));
+  const remainMin = Math.max(0, Math.round(targetRemain - spread));
+  const remainMax = Math.max(remainMin, Math.round(targetRemain + spread));
+  const occupancyMin = Math.max(0, Math.min(100, Math.round(((capacity - remainMax) / capacity) * 100)));
+  const occupancyMax = Math.max(0, Math.min(100, Math.round(((capacity - remainMin) / capacity) * 100)));
+
+  return {
+    remainMin,
+    remainMax,
+    occupancyMin,
+    occupancyMax,
+    boardText: getBoardingLabel(remainMin, remainMax),
+    congestionText: getCongestionLabel(remainMin, remainMax),
+    noteText:
+      notes.length > 0
+        ? notes.join(" · ")
+        : "과거 운행 패턴과 배차 간격을 기준으로 추정했습니다.",
+  };
+}
+
+function buildForecast(dayValue, timeMinutes, apiEntry) {
+  const future = shiftSelection(dayValue, timeMinutes, FORECAST_MINUTES_AHEAD);
+  const profile = getServiceProfile(future.dayValue, future.timeMinutes);
+  const nextArrival = calculateNextArrival(future.timeMinutes, profile);
+  const seatForecast = forecastSeatsFromSignals(future.dayValue, future.timeMinutes, apiEntry, profile);
+
+  return {
+    label: getTimeLabel(future.dayValue, future.timeMinutes),
+    arrivalText: nextArrival.display,
+    seatsText: formatSeatRange(seatForecast.remainMin, seatForecast.remainMax),
+    boardingText: seatForecast.boardText,
+    congestionText: seatForecast.congestionText,
+    noteText: `${seatForecast.noteText} · ${nextArrival.note}`,
+  };
 }
 
 
@@ -285,6 +511,7 @@ async function updateUI(openPanel = false) {
   const dayValue = weekdayEl.value;
   const timeMinutes = parseTimeToMinutes(departureEl.value);
   const useLiveData = isTodaySelection(dayValue) && isNearNow(timeMinutes);
+  let apiEntry = null;
 
   if (openPanel) {
     answerPanel.hidden = false;
@@ -293,21 +520,21 @@ async function updateUI(openPanel = false) {
   subNavState.textContent = openPanel ? (useLiveData ? "실시간 조회 중..." : "계산 중...") : "샘플 계산";
   decisionText.textContent = `${weekdayLabels[dayValue] ?? "요일"} · ${departureEl.value}`;
   decisionSub.textContent =
-      useLiveData
-      ? "오늘이고 지금 시간에 가까워서 실시간 API로만 보여줍니다."
-      : "7800번 버스의 첫 번째와 두 번째 예측을 같은 화면에서 같이 보여줍니다.";
+    useLiveData
+      ? "오늘이고 지금 시간에 가까워서 실시간 API를 우선 보여주고, 3시간 뒤는 실시간+패턴으로 예측합니다."
+      : "7800번 버스의 첫 번째와 두 번째 예측을 같은 화면에서 같이 보여주고, 3시간 뒤 예상도 함께 계산합니다.";
 
   let busData;
   if (useLiveData) {
     try {
-      const apiEntry = await fetchBusData();
+      apiEntry = await fetchBusData();
       busData = renderBusData(dayValue, timeMinutes, apiEntry, false);
     } catch (_error) {
       busData = null;
     }
   } else {
     try {
-      const apiEntry = await fetchBusData();
+      apiEntry = await fetchBusData();
       busData = renderBusData(dayValue, timeMinutes, apiEntry, true);
     } catch (_error) {
       busData = buildFallbackBusData(dayValue, timeMinutes);
@@ -348,6 +575,14 @@ async function updateUI(openPanel = false) {
   busLocation2El.textContent = busData.second.locationText;
   busSeat2El.textContent = busData.second.seatText;
   busNote2El.textContent = busData.note2;
+
+  const forecast = buildForecast(dayValue, timeMinutes, useLiveData ? apiEntry : null);
+  forecastTimeEl.textContent = forecast.label;
+  forecastStateEl.textContent = useLiveData ? "실시간 보정" : "과거 패턴";
+  forecastArrivalEl.textContent = forecast.arrivalText;
+  forecastSeatsEl.textContent = forecast.seatsText;
+  forecastBoardingEl.textContent = `${forecast.boardingText} · ${forecast.congestionText}`;
+  forecastNoteEl.textContent = forecast.noteText;
 }
 
 refreshBtn.addEventListener("click", () => updateUI(true));
