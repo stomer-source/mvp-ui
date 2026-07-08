@@ -8,16 +8,16 @@ const answerPanel = $("answerPanel");
 const subNavState = $("subNavState");
 const decisionText = $("decisionText");
 const decisionSub = $("decisionSub");
-const busArrivalEl = $("busArrival");
-const busNextEl = $("busNext");
-const busHeadwayEl = $("busHeadway");
-const busServiceEl = $("busService");
-const busNoteEl = $("busNote");
-const seatSummaryEl = $("seatSummary");
-const seatCapacityEl = $("seatCapacity");
-const seatRemainEl = $("seatRemain");
-const busTypeMixEl = $("busTypeMix");
-const seatNoteEl = $("seatNote");
+const busArrival1El = $("busArrival1");
+const busPredict1El = $("busPredict1");
+const busLocation1El = $("busLocation1");
+const busSeat1El = $("busSeat1");
+const busNote1El = $("busNote1");
+const busArrival2El = $("busArrival2");
+const busPredict2El = $("busPredict2");
+const busLocation2El = $("busLocation2");
+const busSeat2El = $("busSeat2");
+const busNote2El = $("busNote2");
 const BUS_API_ENDPOINT = "https://apis.data.go.kr/6410000/busarrivalservice/v2/getBusArrivalListv2";
 const BUS_API_SERVICE_KEY = "223e3b2cf9a71733ebc98afd9de0fe244440b47b57aae18494886aebeffff8bd";
 const BUS_STATION_ID = "119000302";
@@ -116,7 +116,6 @@ function calculateNextArrival(timeMinutes, profile) {
     return {
       display: formatClock(profile.first),
       note: "첫차 대기",
-      service: "운행 전",
     };
   }
 
@@ -124,7 +123,6 @@ function calculateNextArrival(timeMinutes, profile) {
     return {
       display: `다음날 ${formatClock(profile.first)}`,
       note: "막차 이후",
-      service: "운행 종료",
     };
   }
 
@@ -133,14 +131,12 @@ function calculateNextArrival(timeMinutes, profile) {
     return {
       display: `다음날 ${formatClock(profile.first)}`,
       note: "막차 이후",
-      service: "운행 종료",
     };
   }
 
   return {
     display: formatClock(arrivalMinutes),
     note: `${formatRange(profile.headway[0], profile.headway[1])} 뒤`,
-    service: "운행 중",
   };
 }
 
@@ -168,60 +164,11 @@ function estimateSeats(profile) {
   };
 }
 
-function formatRouteName(routeName) {
-  return `${routeName}번`;
-}
-
 function toNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function pickSoonestBusEntry(busArrivalList) {
-  const routeEntries = busArrivalList.filter((item) => String(item.routeName) === BUS_ROUTE_NAME);
-
-  if (!routeEntries.length) {
-    return null;
-  }
-
-  const bestEntry = routeEntries
-    .map((item) => {
-      const arrival1 = toNumber(item.predictTime1);
-      const arrival2 = toNumber(item.predictTime2);
-      const stop1 = toNumber(item.locationNo1);
-      const stop2 = toNumber(item.locationNo2);
-      const seat1 = toNumber(item.remainSeatCnt1);
-      const seat2 = toNumber(item.remainSeatCnt2);
-      const candidates = [
-        { predictTime: arrival1, locationNo: stop1, remainSeatCnt: seat1, label: "첫 번째 버스" },
-        { predictTime: arrival2, locationNo: stop2, remainSeatCnt: seat2, label: "두 번째 버스" },
-      ].filter((candidate) => candidate.predictTime !== null);
-
-      return candidates.sort((a, b) => a.predictTime - b.predictTime)[0] ?? null;
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.predictTime - b.predictTime)[0];
-
-  return bestEntry ?? null;
-}
-
-function formatSeatRange(remainSeatCnt) {
-  if (remainSeatCnt === null) {
-    return "좌석 정보 없음";
-  }
-
-  if (remainSeatCnt <= 0) {
-    return "만석에 가까움";
-  }
-
-  if (remainSeatCnt <= 5) {
-    return `약 ${remainSeatCnt}석`;
-  }
-
-  const low = Math.max(0, remainSeatCnt - 3);
-  const high = remainSeatCnt + 3;
-  return `약 ${low}~${high}석`;
-}
 
 function extractBusArrivalList(payload) {
   return (
@@ -233,26 +180,45 @@ function extractBusArrivalList(payload) {
   );
 }
 
+function findRouteEntry(busArrivalList) {
+  return busArrivalList.find((item) => String(item.routeName) === BUS_ROUTE_NAME) ?? null;
+}
+
 function buildFallbackBusData(dayValue, timeMinutes) {
   const profile = getServiceProfile(dayValue, timeMinutes);
   const nextArrival = calculateNextArrival(timeMinutes, profile);
   const seatEstimate = estimateSeats(profile);
+  const secondArrivalMinutes = Math.max(timeMinutes, profile.first) + Math.round((profile.headway[0] + profile.headway[1]) / 2);
+  const secondArrivalText =
+    secondArrivalMinutes >= profile.last
+      ? `다음날 ${formatClock(profile.first)}`
+      : formatClock(secondArrivalMinutes);
 
   return {
-    arrivalText: nextArrival.display,
-    arrivalNote: nextArrival.note,
-    headwayText: formatRange(profile.headway[0], profile.headway[1]),
-    serviceText: profile.serviceText,
-    note:
+    first: {
+      arrivalText: nextArrival.display,
+      locationText: nextArrival.note,
+      seatText:
+        profile.timeCondition === "peak"
+          ? `약 ${Math.max(0, seatEstimate.remainMin - 4)}~${Math.max(0, seatEstimate.remainMax - 4)}석`
+          : `약 ${seatEstimate.remainMin}~${seatEstimate.remainMax}석`,
+    },
+    second: {
+      arrivalText: secondArrivalText,
+      locationText: `${formatRange(profile.headway[0], profile.headway[1])} 뒤`,
+      seatText:
+        profile.timeCondition === "peak"
+          ? `약 ${Math.max(0, seatEstimate.remainMin - 6)}~${Math.max(0, seatEstimate.remainMax - 6)}석`
+          : `약 ${Math.max(0, seatEstimate.remainMin - 2)}~${Math.max(0, seatEstimate.remainMax - 2)}석`,
+    },
+    note1:
       profile.timeCondition === "peak"
         ? "출퇴근 시간대라 배차는 촘촘하지만 좌석은 빨리 차는 편입니다."
         : "평소 시간대라면 다음 도착 예측과 남는 좌석이 비교적 넉넉하게 보입니다.",
-    seatSummary: `평균 약 ${seatEstimate.capacity}석`,
-    seatCapacity: "44~70석",
-    seatRemain: `약 ${seatEstimate.remainMin}~${seatEstimate.remainMax}석`,
-    busTypeMix: "2층 12대 / 일반 15대",
-    seatNote:
-      "좌석 수는 차량 종류에 따라 달라집니다. 2층버스가 오면 더 여유롭고, 일반버스면 더 빨리 찹니다.",
+    note2:
+      profile.timeCondition === "peak"
+        ? "두 번째 버스도 빠르게 이어지지만 좌석은 더 빨리 채워질 수 있습니다."
+        : "두 번째 버스는 바로 뒤에 이어오는 편입니다.",
     sourceLabel: "샘플 데이터",
   };
 }
@@ -274,7 +240,7 @@ async function fetchBusData() {
 
   const data = await response.json();
   const busArrivalList = extractBusArrivalList(data);
-  return pickSoonestBusEntry(busArrivalList);
+  return findRouteEntry(busArrivalList);
 }
 
 function renderBusData(dayValue, timeMinutes, apiEntry, allowFallback = true) {
@@ -289,47 +255,29 @@ function renderBusData(dayValue, timeMinutes, apiEntry, allowFallback = true) {
   const remainSeatCnt1 = toNumber(apiEntry.remainSeatCnt1);
   const remainSeatCnt2 = toNumber(apiEntry.remainSeatCnt2);
 
-  const candidate1 = predictTime1 === null
-    ? null
-    : { predictTime: predictTime1, locationNo: locationNo1, remainSeatCnt: remainSeatCnt1 };
-  const candidate2 = predictTime2 === null
-    ? null
-    : { predictTime: predictTime2, locationNo: locationNo2, remainSeatCnt: remainSeatCnt2 };
-
-  const candidates = [candidate1, candidate2].filter(Boolean).sort((a, b) => a.predictTime - b.predictTime);
-  const best = candidates[0];
-
-  if (!best) {
-    return allowFallback ? buildFallbackBusData(dayValue, timeMinutes) : null;
-  }
-
-  const arrivalMinutes = Math.max(0, Math.round(best.predictTime));
-  const seatCount = best.remainSeatCnt;
   const fallback = buildFallbackBusData(dayValue, timeMinutes);
 
   return {
-    arrivalText: `${arrivalMinutes}분 후`,
-    arrivalNote: `남은 정류장 ${best.locationNo ?? "?"}개`,
-    headwayText: fallback.headwayText,
-    serviceText: fallback.serviceText,
-    note: `실시간 API 기준으로 사당역 9번 출구까지 약 ${arrivalMinutes}분 남았습니다.`,
-    seatSummary:
-      seatCount === null
-        ? "좌석 정보 없음"
-        : seatCount <= 0
-          ? "만석에 가까움"
-          : `약 ${seatCount}석`,
-    seatCapacity: "44~70석",
-    seatRemain:
-      seatCount === null
-        ? "좌석 정보 없음"
-        : formatSeatRange(seatCount),
-    busTypeMix: "2층 12대 / 일반 15대",
-    seatNote:
-      seatCount === null
-        ? "API에서 좌석 정보를 받지 못했습니다."
-        : `API의 remainSeatCnt 기준이며, 차량 내부 상황에 따라 실제 좌석 체감은 달라질 수 있습니다.`,
+    first: {
+      arrivalText: predictTime1 === null ? "정보 없음" : `${predictTime1}분 후`,
+      locationText: locationNo1 === null ? "정보 없음" : `남은 정류장 ${locationNo1}개`,
+      seatText: remainSeatCnt1 === null ? "좌석 정보 없음" : `${remainSeatCnt1}석`,
+    },
+    second: {
+      arrivalText: predictTime2 === null ? "정보 없음" : `${predictTime2}분 후`,
+      locationText: locationNo2 === null ? "정보 없음" : `남은 정류장 ${locationNo2}개`,
+      seatText: remainSeatCnt2 === null ? "좌석 정보 없음" : `${remainSeatCnt2}석`,
+    },
+    note1:
+      predictTime1 === null
+        ? "첫 번째 버스 정보를 찾지 못했습니다."
+        : `사당역 9번 출구 기준 첫 번째 버스는 약 ${predictTime1}분 뒤 도착합니다.`,
+    note2:
+      predictTime2 === null
+        ? "두 번째 버스 정보를 찾지 못했습니다."
+        : `사당역 9번 출구 기준 두 번째 버스는 약 ${predictTime2}분 뒤 도착합니다.`,
     sourceLabel: "API 실시간",
+    fallback,
   };
 }
 
@@ -345,9 +293,9 @@ async function updateUI(openPanel = false) {
   subNavState.textContent = openPanel ? (useLiveData ? "실시간 조회 중..." : "계산 중...") : "샘플 계산";
   decisionText.textContent = `${weekdayLabels[dayValue] ?? "요일"} · ${departureEl.value}`;
   decisionSub.textContent =
-    useLiveData
+      useLiveData
       ? "오늘이고 지금 시간에 가까워서 실시간 API로만 보여줍니다."
-      : "7800번 버스의 다음 도착 시각과 대략 남는 좌석 수를 같은 화면에서 같이 보여줍니다.";
+      : "7800번 버스의 첫 번째와 두 번째 예측을 같은 화면에서 같이 보여줍니다.";
 
   let busData;
   if (useLiveData) {
@@ -355,19 +303,7 @@ async function updateUI(openPanel = false) {
       const apiEntry = await fetchBusData();
       busData = renderBusData(dayValue, timeMinutes, apiEntry, false);
     } catch (_error) {
-      busData = {
-        arrivalText: "실시간 조회 실패",
-        arrivalNote: "API 응답 없음",
-        headwayText: "-",
-        serviceText: "실시간 데이터 필요",
-        note: "오늘이고 현재 시간에 가까워서 과거 데이터 대신 실시간 정보가 필요하지만, API를 가져오지 못했습니다.",
-        seatSummary: "좌석 정보 없음",
-        seatCapacity: "44~70석",
-        seatRemain: "실시간 확인 실패",
-        busTypeMix: "2층 12대 / 일반 15대",
-        seatNote: "실시간 API가 응답하면 이 자리에 남은 좌석 수가 표시됩니다.",
-        sourceLabel: "실시간 조회 실패",
-      };
+      busData = null;
     }
   } else {
     try {
@@ -381,16 +317,18 @@ async function updateUI(openPanel = false) {
   if (!busData) {
     busData = useLiveData
       ? {
-          arrivalText: "실시간 조회 실패",
-          arrivalNote: "7800번 데이터 없음",
-          headwayText: "-",
-          serviceText: "실시간 데이터 필요",
-          note: "오늘이고 현재 시간에 가까워서 과거 데이터 대신 실시간 정보가 필요하지만, 7800번 항목을 찾지 못했습니다.",
-          seatSummary: "좌석 정보 없음",
-          seatCapacity: "44~70석",
-          seatRemain: "실시간 확인 실패",
-          busTypeMix: "2층 12대 / 일반 15대",
-          seatNote: "API 응답에 7800번 버스가 없어서 실시간 정보를 보여주지 못했습니다.",
+          first: {
+            arrivalText: "실시간 조회 실패",
+            locationText: "7800번 데이터 없음",
+            seatText: "실시간 확인 실패",
+          },
+          second: {
+            arrivalText: "실시간 조회 실패",
+            locationText: "7800번 데이터 없음",
+            seatText: "실시간 확인 실패",
+          },
+          note1: "오늘이고 현재 시간에 가까워서 과거 데이터 대신 실시간 정보가 필요하지만, 7800번 항목을 찾지 못했습니다.",
+          note2: "오늘이고 현재 시간에 가까워서 과거 데이터 대신 실시간 정보가 필요하지만, 7800번 항목을 찾지 못했습니다.",
           sourceLabel: "실시간 조회 실패",
         }
       : buildFallbackBusData(dayValue, timeMinutes);
@@ -399,17 +337,17 @@ async function updateUI(openPanel = false) {
   answerPanel.hidden = false;
   subNavState.textContent = busData.sourceLabel;
 
-  busArrivalEl.textContent = busData.arrivalText;
-  busNextEl.textContent = busData.arrivalNote;
-  busHeadwayEl.textContent = busData.headwayText;
-  busServiceEl.textContent = busData.serviceText;
-  busNoteEl.textContent = busData.note;
+  busArrival1El.textContent = busData.first.arrivalText;
+  busPredict1El.textContent = busData.first.arrivalText;
+  busLocation1El.textContent = busData.first.locationText;
+  busSeat1El.textContent = busData.first.seatText;
+  busNote1El.textContent = busData.note1;
 
-  seatSummaryEl.textContent = busData.seatSummary;
-  seatCapacityEl.textContent = busData.seatCapacity;
-  seatRemainEl.textContent = busData.seatRemain;
-  busTypeMixEl.textContent = busData.busTypeMix;
-  seatNoteEl.textContent = busData.seatNote;
+  busArrival2El.textContent = busData.second.arrivalText;
+  busPredict2El.textContent = busData.second.arrivalText;
+  busLocation2El.textContent = busData.second.locationText;
+  busSeat2El.textContent = busData.second.seatText;
+  busNote2El.textContent = busData.note2;
 }
 
 refreshBtn.addEventListener("click", () => updateUI(true));
