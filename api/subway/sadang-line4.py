@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -10,6 +11,8 @@ from http.server import BaseHTTPRequestHandler
 SUBWAY_API_KEY = os.environ.get("SEOUL_SUBWAY_API_KEY", "").strip()
 SUBWAY_STATION = "사당"
 SUBWAY_LINE_ID = "1004"
+UPSTREAM_TIMEOUT_SECONDS = 30
+UPSTREAM_RETRY_COUNT = 1
 
 
 def fetch_subway_rows():
@@ -23,8 +26,18 @@ def fetch_subway_rows():
     )
     request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
 
-    with urllib.request.urlopen(request, timeout=10) as response:
-        xml_text = response.read().decode("utf-8")
+    for attempt in range(UPSTREAM_RETRY_COUNT + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=UPSTREAM_TIMEOUT_SECONDS) as response:
+                xml_text = response.read().decode("utf-8")
+            break
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            if attempt < UPSTREAM_RETRY_COUNT:
+                time.sleep(1)
+                continue
+            raise RuntimeError(
+                f"Upstream request failed after {UPSTREAM_TIMEOUT_SECONDS}s: {exc}"
+            ) from exc
 
     root = ET.fromstring(xml_text)
     rows = []
@@ -72,4 +85,3 @@ class handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
-
