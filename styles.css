@@ -143,6 +143,12 @@ h1 {
   transform: scale(0.96);
 }
 
+.apple-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+  transform: none;
+}
+
 .apple-button.primary {
   background: var(--primary);
   color: var(--on-primary);
@@ -407,6 +413,16 @@ h1 {
   background: #fff;
 }
 
+.subway-card {
+  border-color: rgba(25, 118, 210, 0.18);
+  background: linear-gradient(180deg, rgba(235, 245, 255, 0.95), #fff);
+}
+
+.subway-card .location-state {
+  background: rgba(25, 118, 210, 0.12);
+  color: #1356a8;
+}
+
 .location-head {
   display: flex;
   justify-content: space-between;
@@ -546,7 +562,7 @@ h1 {
 
   .meta-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .apple-button {

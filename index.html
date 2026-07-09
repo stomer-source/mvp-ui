@@ -50,6 +50,9 @@
                 <button class="apple-button secondary meta-button" id="locationBtn" type="button">
                   목록
                 </button>
+                <button class="apple-button secondary meta-button" id="subwayBtn" type="button">
+                  지하철
+                </button>
               </div>
             </div>
           </div>
@@ -133,6 +136,20 @@
                 실시간 응답을 받으면 현재 운행 중인 7800번 차량들을 전부 보여줍니다.
               </p>
               <div id="locationList" class="location-list"></div>
+            </article>
+
+            <article class="location-card subway-card" id="subwayCard" hidden>
+              <div class="location-head">
+                <div>
+                  <p class="location-kicker">서울 지하철 실시간 도착</p>
+                  <h3 id="subwayTitle">사당역 4호선</h3>
+                </div>
+                <span class="location-state" id="subwayState">대기 중</span>
+              </div>
+              <p id="subwaySummary" class="location-summary">
+                버튼을 누르면 사당역 4호선 실시간 도착정보를 불러옵니다.
+              </p>
+              <div id="subwayList" class="location-list"></div>
             </article>
           </section>
         </div>

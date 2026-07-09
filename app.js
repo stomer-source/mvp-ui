@@ -30,11 +30,22 @@ const locationTitleEl = $("locationTitle");
 const locationStateEl = $("locationState");
 const locationSummaryEl = $("locationSummary");
 const locationListEl = $("locationList");
+const subwayBtn = $("subwayBtn");
+const subwayCardEl = $("subwayCard");
+const subwayTitleEl = $("subwayTitle");
+const subwayStateEl = $("subwayState");
+const subwaySummaryEl = $("subwaySummary");
+const subwayListEl = $("subwayList");
 const BUS_LOCATION_API_ENDPOINT = "https://apis.data.go.kr/6410000/buslocationservice/v2/getBusLocationListv2";
 const BUS_API_SERVICE_KEY = "223e3b2cf9a71733ebc98afd9de0fe244440b47b57aae18494886aebeffff8bd";
 const BUS_STATION_ID = "119000302";
 const BUS_ROUTE_NAME = "7800";
 const BUS_ROUTE_ID = "200000150";
+const SEOUL_SUBWAY_API_ENDPOINT = "http://swopenAPI.seoul.go.kr/api/subway";
+const SEOUL_SUBWAY_API_KEY_STORAGE = "SEOUL_SUBWAY_API_KEY";
+const SEOUL_SUBWAY_DEFAULT_API_KEY = "4f7377766673746f3639754f787679";
+const SEOUL_SUBWAY_STATION_NAME = "사당";
+const SEOUL_SUBWAY_LINE_ID = "1004";
 const LIVE_TIME_WINDOW_MINUTES = 30;
 const FORECAST_HOURS_AHEAD = 3;
 const FORECAST_MINUTES_AHEAD = FORECAST_HOURS_AHEAD * 60;
@@ -569,6 +580,193 @@ async function fetchBusData() {
   };
 }
 
+function getSubwayApiKey(allowPrompt = true) {
+  const injectedKey = String(
+    window.SEOUL_SUBWAY_API_KEY ?? window.__SEOUL_SUBWAY_API_KEY__ ?? ""
+  ).trim();
+  const storedKey = String(localStorage.getItem(SEOUL_SUBWAY_API_KEY_STORAGE) ?? "").trim();
+  const apiKey = injectedKey || storedKey || SEOUL_SUBWAY_DEFAULT_API_KEY;
+
+  if (apiKey) {
+    if (!storedKey && apiKey === SEOUL_SUBWAY_DEFAULT_API_KEY) {
+      localStorage.setItem(SEOUL_SUBWAY_API_KEY_STORAGE, apiKey);
+    }
+    return apiKey;
+  }
+
+  if (!allowPrompt) {
+    return "";
+  }
+
+  const entered = window.prompt("서울 열린데이터광장 인증키를 입력하세요.");
+  const normalized = String(entered ?? "").trim();
+  if (normalized) {
+    localStorage.setItem(SEOUL_SUBWAY_API_KEY_STORAGE, normalized);
+  }
+
+  return normalized;
+}
+
+async function fetchSadangLine4Arrivals() {
+  const apiKey = getSubwayApiKey(true);
+  if (!apiKey) {
+    throw new Error("서울 지하철 API 키가 필요합니다.");
+  }
+
+  const url = `${SEOUL_SUBWAY_API_ENDPOINT}/${encodeURIComponent(apiKey)}/json/realtimeStationArrival/0/10/${encodeURIComponent(SEOUL_SUBWAY_STATION_NAME)}`;
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`Subway arrival API request failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const rows = data?.realtimeStationArrival?.row ?? [];
+
+  return rows
+    .filter((row) => String(row.subwayId) === SEOUL_SUBWAY_LINE_ID)
+    .sort((a, b) => {
+      const arrivalA = toNumber(a.barvlDt) ?? Number.MAX_SAFE_INTEGER;
+      const arrivalB = toNumber(b.barvlDt) ?? Number.MAX_SAFE_INTEGER;
+      if (arrivalA !== arrivalB) {
+        return arrivalA - arrivalB;
+      }
+
+      const codeA = toNumber(a.arvlCd) ?? Number.MAX_SAFE_INTEGER;
+      const codeB = toNumber(b.arvlCd) ?? Number.MAX_SAFE_INTEGER;
+      if (codeA !== codeB) {
+        return codeA - codeB;
+      }
+
+      const timeA = String(a.recptnDt ?? "");
+      const timeB = String(b.recptnDt ?? "");
+      return timeB.localeCompare(timeA);
+    });
+}
+
+function renderSubwayCard(arrivals, message, isError = false) {
+  subwayCardEl.hidden = false;
+  subwayTitleEl.textContent = `${SEOUL_SUBWAY_STATION_NAME}역 4호선`;
+  subwayStateEl.textContent = message;
+  subwaySummaryEl.textContent = isError
+    ? "인증키를 확인한 뒤 다시 눌러주세요."
+    : arrivals.length
+      ? `사당역 4호선 실시간 도착정보 ${arrivals.length}건을 불러왔습니다.`
+      : "현재 보여줄 도착정보가 없습니다.";
+
+  if (!arrivals.length) {
+    subwayListEl.innerHTML = "";
+    return;
+  }
+
+  subwayListEl.innerHTML = arrivals
+    .map((row) => {
+      const direction = row.updnLine ?? "-";
+      const destination = row.trainLineNm ?? "-";
+      const status = row.arvlMsg2 ?? "-";
+      const currentLocation = row.arvlMsg3 ?? "-";
+      const updatedAt = row.recptnDt ?? "-";
+      const arrivalCode = row.arvlCd ?? "-";
+
+      return `
+        <section class="vehicle-row">
+          <div class="vehicle-head">
+            <strong>${destination}</strong>
+            <span class="vehicle-pill">${direction}</span>
+          </div>
+          <div class="vehicle-grid">
+            <div class="vehicle-field">
+              <span>도착 메시지</span>
+              <strong>${status}</strong>
+            </div>
+            <div class="vehicle-field">
+              <span>현재 위치</span>
+              <strong>${currentLocation}</strong>
+            </div>
+            <div class="vehicle-field">
+              <span>갱신 시각</span>
+              <strong>${updatedAt}</strong>
+            </div>
+            <div class="vehicle-field">
+              <span>도착 코드</span>
+              <strong>${arrivalCode}</strong>
+            </div>
+          </div>
+          <p class="vehicle-note">사당역 4호선 실시간 도착정보입니다.</p>
+        </section>
+      `;
+    })
+    .join("");
+}
+
+function formatSubwayArrivalTime(barvlDt) {
+  const seconds = toNumber(barvlDt);
+
+  if (seconds === null) {
+    return "도착 시간 정보 없음";
+  }
+
+  if (seconds <= 0) {
+    return "도착 임박";
+  }
+
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return `${minutes}분 후`;
+}
+
+function renderSadangLine4Arrivals(arrivals) {
+  subwayCardEl.hidden = false;
+  subwayTitleEl.textContent = `${SEOUL_SUBWAY_STATION_NAME}역 4호선`;
+  subwayStateEl.textContent = "실시간 조회 완료";
+  subwaySummaryEl.textContent = arrivals.length
+    ? `사당역 4호선 실시간 도착정보 ${arrivals.length}건을 불러왔습니다.`
+    : "현재 보여줄 도착정보가 없습니다.";
+
+  if (!arrivals.length) {
+    subwayListEl.innerHTML = "";
+    return;
+  }
+
+  subwayListEl.innerHTML = arrivals
+    .map((row) => {
+      const direction = row.updnLine ?? "-";
+      const destination = row.trainLineNm ?? "-";
+      const status = row.arvlMsg2 ?? "-";
+      const currentLocation = row.arvlMsg3 ?? "-";
+      const arrivalTime = formatSubwayArrivalTime(row.barvlDt);
+      const updatedAt = row.recptnDt ?? "-";
+
+      return `
+        <section class="vehicle-row">
+          <div class="vehicle-head">
+            <strong>${destination}</strong>
+            <span class="vehicle-pill">${direction}</span>
+          </div>
+          <div class="vehicle-grid">
+            <div class="vehicle-field">
+              <span>도착 메시지</span>
+              <strong>${status}</strong>
+            </div>
+            <div class="vehicle-field">
+              <span>현재 위치</span>
+              <strong>${currentLocation}</strong>
+            </div>
+            <div class="vehicle-field">
+              <span>도착까지</span>
+              <strong>${arrivalTime}</strong>
+            </div>
+            <div class="vehicle-field">
+              <span>갱신 시각</span>
+              <strong>${updatedAt}</strong>
+            </div>
+          </div>
+          <p class="vehicle-note">사당역 4호선 실시간 도착정보입니다.</p>
+        </section>
+      `;
+    })
+    .join("");
+}
+
 function renderBusData(dayValue, timeMinutes, apiEntry, allowFallback = true) {
   if (!apiEntry) {
     return allowFallback ? buildFallbackBusData(dayValue, timeMinutes) : null;
@@ -674,6 +872,28 @@ function renderLocationCard(locationEntries) {
     .join("");
 }
 
+async function updateSubwayUI() {
+  subwayCardEl.hidden = false;
+  subwayBtn.disabled = true;
+  subwayStateEl.textContent = "조회 중";
+  subwaySummaryEl.textContent = "사당역 4호선 실시간 도착정보를 불러오는 중입니다.";
+  subwayListEl.innerHTML = "";
+
+  try {
+    const arrivals = await fetchSadangLine4Arrivals();
+    renderSadangLine4Arrivals(arrivals);
+  } catch (error) {
+    renderSadangLine4Arrivals([]);
+    subwayStateEl.textContent = "조회 실패";
+    const message = error instanceof Error ? error.message : "사당역 4호선 정보를 불러오지 못했습니다.";
+    subwaySummaryEl.textContent = message;
+  } finally {
+    subwayBtn.disabled = false;
+  }
+
+  subwayCardEl.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 async function updateUI(openPanel = false) {
   const dayValue = weekdayEl.value;
   const timeMinutes = parseTimeToMinutes(departureEl.value);
@@ -754,6 +974,9 @@ locationBtn.addEventListener("click", async () => {
   locationCardEl.hidden = false;
   await updateUI(true);
   locationCardEl.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+subwayBtn.addEventListener("click", async () => {
+  await updateSubwayUI();
 });
 [departureEl, weekdayEl].forEach((el) => {
   el.addEventListener("input", updateUI);
