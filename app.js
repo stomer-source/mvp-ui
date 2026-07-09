@@ -886,7 +886,22 @@ async function fetchSadangLine4Arrivals() {
   const response = await fetch(SEOUL_SUBWAY_PROXY_ENDPOINT);
 
   if (!response.ok) {
-    throw new Error(`Subway proxy request failed: ${response.status}`);
+    let detail = "";
+    try {
+      const bodyText = await response.text();
+      if (bodyText) {
+        try {
+          const errorData = JSON.parse(bodyText);
+          detail = errorData?.error ? `: ${errorData.error}` : `: ${bodyText}`;
+        } catch (_parseError) {
+          detail = `: ${bodyText}`;
+        }
+      }
+    } catch (_error) {
+      detail = "";
+    }
+
+    throw new Error(`Subway proxy request failed: ${response.status}${detail}`);
   }
 
   const data = await response.json();
