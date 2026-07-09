@@ -24,7 +24,14 @@ def fetch_subway_rows():
         f"{urllib.parse.quote(SUBWAY_API_KEY)}/xml/realtimeStationArrival/0/10/"
         f"{urllib.parse.quote(SUBWAY_STATION)}"
     )
-    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "Accept": "application/xml,text/xml;q=0.9,*/*;q=0.8",
+            "Connection": "close",
+        },
+    )
 
     for attempt in range(UPSTREAM_RETRY_COUNT + 1):
         try:
