@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import socket
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -13,6 +14,16 @@ SUBWAY_STATION = "사당"
 SUBWAY_LINE_ID = "1004"
 UPSTREAM_TIMEOUT_SECONDS = 30
 UPSTREAM_RETRY_COUNT = 1
+
+
+_original_getaddrinfo = socket.getaddrinfo
+
+
+def _ipv4_only_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    return _original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+
+
+socket.getaddrinfo = _ipv4_only_getaddrinfo
 
 
 def fetch_subway_rows():
