@@ -41,11 +41,14 @@ const BUS_API_SERVICE_KEY = "223e3b2cf9a71733ebc98afd9de0fe244440b47b57aae184948
 const BUS_STATION_ID = "119000302";
 const BUS_ROUTE_NAME = "7800";
 const BUS_ROUTE_ID = "200000150";
-const SEOUL_SUBWAY_API_ENDPOINT = "http://swopenAPI.seoul.go.kr/api/subway";
+const SEOUL_SUBWAY_API_ENDPOINT = "https://swopenAPI.seoul.go.kr/api/subway";
 const SEOUL_SUBWAY_API_KEY_STORAGE = "SEOUL_SUBWAY_API_KEY";
 const SEOUL_SUBWAY_DEFAULT_API_KEY = "4f7377766673746f3639754f787679";
 const SEOUL_SUBWAY_STATION_NAME = "사당";
 const SEOUL_SUBWAY_LINE_ID = "1004";
+const SEOUL_SUBWAY_PROXY_ENDPOINT = "/api/subway/sadang-line4";
+const SEOUL_SUBWAY_TARGET_STATION = "사당";
+const SEOUL_SUBWAY_TARGET_LINE_ID = "1004";
 const LIVE_TIME_WINDOW_MINUTES = 30;
 const FORECAST_HOURS_AHEAD = 3;
 const FORECAST_MINUTES_AHEAD = FORECAST_HOURS_AHEAD * 60;
@@ -614,7 +617,14 @@ async function fetchSadangLine4Arrivals() {
   }
 
   const url = `${SEOUL_SUBWAY_API_ENDPOINT}/${encodeURIComponent(apiKey)}/json/realtimeStationArrival/0/10/${encodeURIComponent(SEOUL_SUBWAY_STATION_NAME)}`;
-  const response = await fetch(url);
+  let response;
+  try {
+    response = await fetch(url);
+  } catch (error) {
+    throw new Error(
+      "지하철 API 연결에 실패했습니다. https 연결이 막혀 있으면 서버 프록시가 필요합니다."
+    );
+  }
 
   if (!response.ok) {
     throw new Error(`Subway arrival API request failed: ${response.status}`);
@@ -866,6 +876,105 @@ function renderLocationCard(locationEntries) {
             </div>
           </div>
           <p class="vehicle-note">차량번호 ${plateNo} 기준으로 현재 실시간 위치를 표시합니다.</p>
+        </section>
+      `;
+    })
+    .join("");
+}
+
+async function fetchSadangLine4Arrivals() {
+  const response = await fetch(SEOUL_SUBWAY_PROXY_ENDPOINT);
+
+  if (!response.ok) {
+    throw new Error(`Subway proxy request failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+
+  return rows
+    .filter((row) => String(row.subwayId) === SEOUL_SUBWAY_TARGET_LINE_ID)
+    .sort((a, b) => {
+      const arrivalA = toNumber(a.barvlDt) ?? Number.MAX_SAFE_INTEGER;
+      const arrivalB = toNumber(b.barvlDt) ?? Number.MAX_SAFE_INTEGER;
+      if (arrivalA !== arrivalB) {
+        return arrivalA - arrivalB;
+      }
+
+      const codeA = toNumber(a.arvlCd) ?? Number.MAX_SAFE_INTEGER;
+      const codeB = toNumber(b.arvlCd) ?? Number.MAX_SAFE_INTEGER;
+      if (codeA !== codeB) {
+        return codeA - codeB;
+      }
+
+      const timeA = String(a.recptnDt ?? "");
+      const timeB = String(b.recptnDt ?? "");
+      return timeB.localeCompare(timeA);
+    });
+}
+
+function formatSubwayArrivalTime(barvlDt) {
+  const seconds = toNumber(barvlDt);
+
+  if (seconds === null) {
+    return "도착 시간 정보 없음";
+  }
+
+  if (seconds <= 0) {
+    return "도착 임박";
+  }
+
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return `${minutes}분 후`;
+}
+
+function renderSadangLine4Arrivals(arrivals) {
+  subwayCardEl.hidden = false;
+  subwayTitleEl.textContent = `${SEOUL_SUBWAY_TARGET_STATION}역 4호선`;
+  subwayStateEl.textContent = "실시간 조회 완료";
+  subwaySummaryEl.textContent = arrivals.length
+    ? `사당역 4호선 실시간 도착정보 ${arrivals.length}건을 불러왔습니다.`
+    : "현재 보여줄 도착정보가 없습니다.";
+
+  if (!arrivals.length) {
+    subwayListEl.innerHTML = "";
+    return;
+  }
+
+  subwayListEl.innerHTML = arrivals
+    .map((row) => {
+      const direction = row.updnLine ?? "-";
+      const destination = row.trainLineNm ?? "-";
+      const status = row.arvlMsg2 ?? "-";
+      const currentLocation = row.arvlMsg3 ?? "-";
+      const arrivalTime = formatSubwayArrivalTime(row.barvlDt);
+      const updatedAt = row.recptnDt ?? "-";
+
+      return `
+        <section class="vehicle-row">
+          <div class="vehicle-head">
+            <strong>${destination}</strong>
+            <span class="vehicle-pill">${direction}</span>
+          </div>
+          <div class="vehicle-grid">
+            <div class="vehicle-field">
+              <span>도착 메시지</span>
+              <strong>${status}</strong>
+            </div>
+            <div class="vehicle-field">
+              <span>현재 위치</span>
+              <strong>${currentLocation}</strong>
+            </div>
+            <div class="vehicle-field">
+              <span>도착까지</span>
+              <strong>${arrivalTime}</strong>
+            </div>
+            <div class="vehicle-field">
+              <span>갱신 시각</span>
+              <strong>${updatedAt}</strong>
+            </div>
+          </div>
+          <p class="vehicle-note">사당역 4호선 실시간 도착정보입니다.</p>
         </section>
       `;
     })
