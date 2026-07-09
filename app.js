@@ -46,7 +46,6 @@ const SEOUL_SUBWAY_API_KEY_STORAGE = "SEOUL_SUBWAY_API_KEY";
 const SEOUL_SUBWAY_DEFAULT_API_KEY = "4f7377766673746f3639754f787679";
 const SEOUL_SUBWAY_STATION_NAME = "사당";
 const SEOUL_SUBWAY_LINE_ID = "1004";
-const SEOUL_SUBWAY_PROXY_ENDPOINT = "/api/subway/sadang-line4";
 const SEOUL_SUBWAY_TARGET_STATION = "사당";
 const SEOUL_SUBWAY_TARGET_LINE_ID = "1004";
 const LIVE_TIME_WINDOW_MINUTES = 30;
@@ -880,52 +879,6 @@ function renderLocationCard(locationEntries) {
       `;
     })
     .join("");
-}
-
-async function fetchSadangLine4Arrivals() {
-  const response = await fetch(SEOUL_SUBWAY_PROXY_ENDPOINT);
-
-  if (!response.ok) {
-    let detail = "";
-    try {
-      const bodyText = await response.text();
-      if (bodyText) {
-        try {
-          const errorData = JSON.parse(bodyText);
-          detail = errorData?.error ? `: ${errorData.error}` : `: ${bodyText}`;
-        } catch (_parseError) {
-          detail = `: ${bodyText}`;
-        }
-      }
-    } catch (_error) {
-      detail = "";
-    }
-
-    throw new Error(`Subway proxy request failed: ${response.status}${detail}`);
-  }
-
-  const data = await response.json();
-  const rows = Array.isArray(data?.rows) ? data.rows : [];
-
-  return rows
-    .filter((row) => String(row.subwayId) === SEOUL_SUBWAY_TARGET_LINE_ID)
-    .sort((a, b) => {
-      const arrivalA = toNumber(a.barvlDt) ?? Number.MAX_SAFE_INTEGER;
-      const arrivalB = toNumber(b.barvlDt) ?? Number.MAX_SAFE_INTEGER;
-      if (arrivalA !== arrivalB) {
-        return arrivalA - arrivalB;
-      }
-
-      const codeA = toNumber(a.arvlCd) ?? Number.MAX_SAFE_INTEGER;
-      const codeB = toNumber(b.arvlCd) ?? Number.MAX_SAFE_INTEGER;
-      if (codeA !== codeB) {
-        return codeA - codeB;
-      }
-
-      const timeA = String(a.recptnDt ?? "");
-      const timeB = String(b.recptnDt ?? "");
-      return timeB.localeCompare(timeA);
-    });
 }
 
 function formatSubwayArrivalTime(barvlDt) {
